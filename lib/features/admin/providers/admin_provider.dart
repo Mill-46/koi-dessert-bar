@@ -8,13 +8,20 @@ import 'package:koi_dessert_bar/features/product/models/product_model.dart';
 class AdminProvider extends ChangeNotifier {
   List<ProductModel> _products = const [];
   Map<String, int> _stats = const {};
+  final Set<String> _deletingProductIds = <String>{};
   bool _isLoading = false;
   String? _error;
+  String? _notice;
 
   List<ProductModel> get products => _products;
   Map<String, int> get stats => _stats;
+  Set<String> get deletingProductIds => _deletingProductIds;
   bool get isLoading => _isLoading;
   String? get error => _error;
+  String? get notice => _notice;
+
+  bool isDeletingProduct(String productId) =>
+      _deletingProductIds.contains(productId);
 
   Future<void> loadProducts({String? search}) async {
     _isLoading = true;
@@ -40,28 +47,41 @@ class AdminProvider extends ChangeNotifier {
 
   Future<bool> saveProduct(ProductModel product, {File? imageFile}) async {
     _isLoading = true;
+    _error = null;
+    _notice = null;
     notifyListeners();
     try {
-      var imageUrl = product.imageUrl;
-      if (imageFile != null) {
-        final uploadId = product.id.isEmpty
-            ? 'new_${DateTime.now().millisecondsSinceEpoch}'
-            : product.id;
-        imageUrl =
-            await SupabaseService.instance.uploadProductImage(imageFile, uploadId);
-      }
-
-      final updatedProduct = product.copyWith(imageUrl: imageUrl);
       if (product.id.isEmpty) {
-        await SupabaseService.instance.createProduct(updatedProduct);
+        var createdProduct =
+            await SupabaseService.instance.createProduct(product);
+        if (imageFile != null) {
+          final imageUrl = await SupabaseService.instance.uploadProductImage(
+            imageFile,
+            createdProduct.id,
+          );
+          createdProduct = await SupabaseService.instance.updateProduct(
+            createdProduct.copyWith(imageUrl: imageUrl),
+          );
+        }
+        _notice = 'Product added successfully.';
       } else {
+        var updatedProduct = product;
+        if (imageFile != null) {
+          final imageUrl = await SupabaseService.instance.uploadProductImage(
+            imageFile,
+            product.id,
+            previousImageUrl: product.imageUrl,
+          );
+          updatedProduct = updatedProduct.copyWith(imageUrl: imageUrl);
+        }
         await SupabaseService.instance.updateProduct(updatedProduct);
+        _notice = 'Product updated successfully.';
       }
 
       await loadProducts();
       return true;
     } catch (e) {
-      _error = e.toString();
+      _error = SupabaseService.instance.describeAdminError(e);
       return false;
     } finally {
       _isLoading = false;
@@ -69,15 +89,34 @@ class AdminProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> deleteProduct(String productId) async {
+  Future<bool> deleteProduct(ProductModel product) async {
+    if (_deletingProductIds.contains(product.id)) {
+      return false;
+    }
+
+    _error = null;
+    _notice = null;
+    _deletingProductIds.add(product.id);
+    notifyListeners();
     try {
-      await SupabaseService.instance.deleteProduct(productId);
-      _products.removeWhere((product) => product.id == productId);
-      notifyListeners();
+      await SupabaseService.instance.deleteProduct(product);
+      _products.removeWhere((item) => item.id == product.id);
+      _notice = 'Product deleted.';
       return true;
     } catch (e) {
-      _error = e.toString();
+      if (SupabaseService.instance.isForeignKeyViolation(e)) {
+        await SupabaseService.instance.archiveProduct(product);
+        _products.removeWhere((item) => item.id == product.id);
+        _notice =
+            'Product is already used in orders, so it was archived and hidden from the menu.';
+        return true;
+      }
+
+      _error = SupabaseService.instance.describeAdminError(e);
       return false;
+    } finally {
+      _deletingProductIds.remove(product.id);
+      notifyListeners();
     }
   }
 

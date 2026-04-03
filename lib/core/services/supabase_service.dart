@@ -15,6 +15,7 @@ import '../../features/product/models/product_model.dart';
 class SupabaseService {
   SupabaseService._();
   static final SupabaseService instance = SupabaseService._();
+  static const Duration _autoCompleteDelay = Duration(seconds: 10);
 
   // Shorthand for Supabase client
   SupabaseClient get _client => Supabase.instance.client;
@@ -87,10 +88,7 @@ class SupabaseService {
 
   /// Update full_name or avatar
   Future<void> updateProfile(Map<String, dynamic> updates) async {
-    await _client
-        .from('profiles')
-        .update(updates)
-        .eq('id', currentUserId);
+    await _client.from('profiles').update(updates).eq('id', currentUserId);
   }
 
   // ─────────────────────────────────────────────────────────
@@ -98,12 +96,22 @@ class SupabaseService {
   // ─────────────────────────────────────────────────────────
 
   /// Fetch all available products, optionally filtered by category
-  Future<List<ProductModel>> fetchProducts({String? category}) async {
+  Future<List<ProductModel>> fetchProducts({
+    String? category,
+    String? search,
+  }) async {
     dynamic query = _client.from('products').select();
     query = query.eq('is_available', true);
 
     if (category != null && category != 'All') {
       query = query.eq('category', category);
+    }
+
+    final keyword = search?.trim();
+    if (keyword != null && keyword.isNotEmpty) {
+      query = query.or(
+        'name.ilike.%$keyword%,description.ilike.%$keyword%,category.ilike.%$keyword%',
+      );
     }
 
     final data = await query.order('created_at', ascending: false);
@@ -116,10 +124,8 @@ class SupabaseService {
         .from('products')
         .select('category')
         .eq('is_available', true);
-    final categories = (data as List)
-        .map((e) => e['category'] as String)
-        .toSet()
-        .toList();
+    final categories =
+        (data as List).map((e) => e['category'] as String).toSet().toList();
     categories.insert(0, 'All');
     return categories;
   }
@@ -142,10 +148,8 @@ class SupabaseService {
       return const [];
     }
 
-    final data = await _client
-        .from('products')
-        .select()
-        .inFilter('id', productIds);
+    final data =
+        await _client.from('products').select().inFilter('id', productIds);
 
     return (data as List).map((e) => ProductModel.fromMap(e)).toList();
   }
@@ -169,26 +173,96 @@ class SupabaseService {
     return ProductModel.fromMap(data);
   }
 
-  Future<void> deleteProduct(String productId) async {
-    await _client.from('products').delete().eq('id', productId);
+  Future<ProductModel> archiveProduct(ProductModel product) async {
+    return updateProduct(
+      product.copyWith(
+        isAvailable: false,
+        stock: 0,
+      ),
+    );
+  }
+
+  Future<void> deleteProduct(ProductModel product) async {
+    await _client.from('products').delete().eq('id', product.id);
+
+    final imagePath = _extractStoragePathFromPublicUrl(product.imageUrl);
+    if (imagePath != null) {
+      try {
+        await deleteProductImage(imagePath);
+      } catch (_) {
+        // Ignore storage cleanup failures after the database row is deleted.
+      }
+    }
   }
 
   // ── Supabase Storage — product images ─────────────────────
 
   /// Uploads an image file and returns the public URL
-  Future<String> uploadProductImage(File imageFile, String productId) async {
+  Future<String> uploadProductImage(
+    File imageFile,
+    String productId, {
+    String? previousImageUrl,
+  }) async {
     final ext = imageFile.path.split('.').last;
-    final path = 'products/$productId.$ext';
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final path = 'products/$productId-$timestamp.$ext';
 
     await _client.storage
         .from('product-images')
         .upload(path, imageFile, fileOptions: const FileOptions(upsert: true));
+
+    final previousPath = _extractStoragePathFromPublicUrl(previousImageUrl);
+    if (previousPath != null && previousPath != path) {
+      try {
+        await deleteProductImage(previousPath);
+      } catch (_) {
+        // Ignore stale-file cleanup failures after the new image is uploaded.
+      }
+    }
 
     return _client.storage.from('product-images').getPublicUrl(path);
   }
 
   Future<void> deleteProductImage(String path) async {
     await _client.storage.from('product-images').remove([path]);
+  }
+
+  String describeAdminError(Object error) {
+    final raw = error.toString();
+
+    if (raw.contains('23503')) {
+      return 'Produk tidak bisa dihapus karena masih dipakai pada data pesanan.';
+    }
+
+    if (raw.contains('row-level security')) {
+      return 'Akun ini tidak memiliki izin untuk menghapus produk.';
+    }
+
+    return raw;
+  }
+
+  bool isForeignKeyViolation(Object error) {
+    return error.toString().contains('23503');
+  }
+
+  String? _extractStoragePathFromPublicUrl(String? imageUrl) {
+    if (imageUrl == null || imageUrl.isEmpty) {
+      return null;
+    }
+
+    final uri = Uri.tryParse(imageUrl);
+    if (uri == null) {
+      return null;
+    }
+
+    const marker = '/storage/v1/object/public/product-images/';
+    final fullPath = uri.path;
+    final markerIndex = fullPath.indexOf(marker);
+    if (markerIndex == -1) {
+      return null;
+    }
+
+    return fullPath.substring(markerIndex + marker.length);
   }
 
   // ─────────────────────────────────────────────────────────
@@ -200,7 +274,7 @@ class SupabaseService {
   /// then items; the DB trigger handles stock decrement & validation.
   Future<OrderModel> createOrder({
     required List<CartItemModel> items,
-    required String type,          // 'delivery' | 'onsite'
+    required String type, // 'delivery' | 'onsite'
     String? address,
     String? notes,
   }) async {
@@ -213,7 +287,9 @@ class SupabaseService {
 
     for (final item in items) {
       final latest = latestById[item.product.id];
-      if (latest == null || !latest.isAvailable || latest.stock < item.quantity) {
+      if (latest == null ||
+          !latest.isAvailable ||
+          latest.stock < item.quantity) {
         throw Exception(
           'Insufficient stock for ${latest?.name ?? item.product.name}. '
           'Available stock: ${latest?.stock ?? 0}.',
@@ -223,18 +299,19 @@ class SupabaseService {
 
     // Calculate total client-side (DB also validates via triggers)
     final total = items.fold<double>(
-      0, (sum, item) => sum + (item.product.price * item.quantity),
+      0,
+      (sum, item) => sum + (item.product.price * item.quantity),
     );
 
     // 1️⃣ Insert order header
     final orderData = await _client
         .from('orders')
         .insert({
-          'user_id':     currentUserId,
-          'type':        type,
-          'address':     address,
-          'notes':       notes,
-          'status':      'pending',
+          'user_id': currentUserId,
+          'type': type,
+          'address': address,
+          'notes': notes,
+          'status': 'pending',
           'total_price': total,
         })
         .select()
@@ -245,9 +322,9 @@ class SupabaseService {
     // 2️⃣ Insert all order items (batch)
     final itemsPayload = items
         .map((item) => {
-              'order_id':   order.id,
+              'order_id': order.id,
               'product_id': item.product.id,
-              'quantity':   item.quantity,
+              'quantity': item.quantity,
               'unit_price': item.product.price,
             })
         .toList();
@@ -255,14 +332,15 @@ class SupabaseService {
     try {
       await _client.from('order_items').insert(itemsPayload);
     } catch (error) {
-      await _client
-          .from('orders')
-          .update({'status': 'cancelled', 'notes': 'Auto-cancelled: item insert failed'})
-          .eq('id', order.id);
+      await _client.from('orders').update({
+        'status': 'cancelled',
+        'notes': 'Auto-cancelled: item insert failed'
+      }).eq('id', order.id);
       rethrow;
     }
 
     await addPointsForOrder(items);
+    _scheduleAutoComplete(order.id);
 
     return order;
   }
@@ -298,6 +376,8 @@ class SupabaseService {
 
   /// Real-time stream of the current user's orders
   Future<List<OrderModel>> fetchMyOrders() async {
+    await _syncExpiredPendingOrders(onlyCurrentUser: true);
+
     final data = await _client
         .from('orders')
         .select()
@@ -320,14 +400,15 @@ class SupabaseService {
   Future<void> cancelOrder(String orderId) async {
     await _client
         .from('orders')
-        .update({'status': 'cancelled'})
-        .eq('id', orderId);
+        .update({'status': 'cancelled'}).eq('id', orderId);
   }
 
   // ── Admin order management ────────────────────────────────
 
   /// Real-time stream of ALL orders for admin dashboard
   Future<List<OrderModel>> fetchAllOrders() async {
+    await _syncExpiredPendingOrders();
+
     final data = await _client
         .from('orders')
         .select()
@@ -347,10 +428,7 @@ class SupabaseService {
 
   /// Update any order status (admin)
   Future<void> updateOrderStatus(String orderId, String status) async {
-    await _client
-        .from('orders')
-        .update({'status': status})
-        .eq('id', orderId);
+    await _client.from('orders').update({'status': status}).eq('id', orderId);
   }
 
   /// Fetch order items with product details for a specific order
@@ -363,24 +441,69 @@ class SupabaseService {
   }
 
   Future<void> addPointsForOrder(List<CartItemModel> items) async {
-    final earnedPoints =
-        items.fold<int>(0, (sum, item) => sum + item.quantity);
+    final earnedPoints = items.fold<int>(0, (sum, item) => sum + item.quantity);
     if (earnedPoints <= 0) {
       return;
     }
 
     final profile = await fetchProfile();
+    await _client.from('profiles').update(
+        {'points': profile.points + earnedPoints}).eq('id', currentUserId);
+  }
+
+  Future<void> _syncExpiredPendingOrders({bool onlyCurrentUser = false}) async {
+    final deadline = DateTime.now().toUtc().subtract(_autoCompleteDelay);
+
+    dynamic query = _client
+        .from('orders')
+        .select('id')
+        .eq('status', 'pending')
+        .lte('created_at', deadline.toIso8601String());
+
+    if (onlyCurrentUser) {
+      query = query.eq('user_id', currentUserId);
+    }
+
+    final rows = await query;
+    final expiredIds = (rows as List)
+        .map((row) => row['id'] as String?)
+        .whereType<String>()
+        .toList();
+
+    if (expiredIds.isEmpty) {
+      return;
+    }
+
     await _client
-        .from('profiles')
-        .update({'points': profile.points + earnedPoints})
-        .eq('id', currentUserId);
+        .from('orders')
+        .update({'status': 'completed'})
+        .inFilter('id', expiredIds)
+        .eq('status', 'pending');
+  }
+
+  void _scheduleAutoComplete(String orderId) {
+    Future<void>.delayed(_autoCompleteDelay, () async {
+      try {
+        await _client
+            .from('orders')
+            .update({'status': 'completed'})
+            .eq('id', orderId)
+            .eq('status', 'pending');
+      } catch (_) {
+        // Ignore background auto-complete failures; the polling sync will retry.
+      }
+    });
   }
 
   /// Admin stats: count by status
   Future<Map<String, int>> fetchOrderStats() async {
     final data = await _client.from('orders').select('status');
     final stats = <String, int>{
-      'pending': 0, 'processing': 0, 'ready': 0, 'completed': 0, 'cancelled': 0,
+      'pending': 0,
+      'processing': 0,
+      'ready': 0,
+      'completed': 0,
+      'cancelled': 0,
     };
     for (final row in data as List) {
       final status = row['status'] as String;

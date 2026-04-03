@@ -1,11 +1,11 @@
 {
-    "name": "koi_dessert_bar",
-    "short_name": "koi_dessert_bar",
+    "name": "Koi Dessert Bar",
+    "short_name": "Koi",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#F2F0EB",
+    "theme_color": "#006241",
+    "description": "Premium Koi Dessert Bar mobile application.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

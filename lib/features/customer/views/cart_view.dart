@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import 'package:koi_dessert_bar/core/constants/app_colors.dart';
 import 'package:koi_dessert_bar/core/router/app_router.dart';
+import 'package:koi_dessert_bar/core/utils/currency_formatter.dart';
 import 'package:koi_dessert_bar/features/order/models/cart_item_model.dart';
 import 'package:koi_dessert_bar/features/order/providers/cart_provider.dart';
 
@@ -62,7 +63,7 @@ class CartView extends StatelessWidget {
                             style: Theme.of(context).textTheme.bodyMedium,
                           ),
                           Text(
-                            'Rp ${cart.total.toStringAsFixed(0)}',
+                            CurrencyFormatter.rupiah(cart.total),
                             style: Theme.of(context)
                                 .textTheme
                                 .headlineSmall
@@ -175,7 +176,7 @@ class _CartItemTile extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Rp ${item.subtotal.toStringAsFixed(0)}',
+                    CurrencyFormatter.rupiah(item.subtotal),
                     style: const TextStyle(
                       color: AppColors.primary,
                       fontWeight: FontWeight.w600,

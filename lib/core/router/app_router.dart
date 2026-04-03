@@ -16,6 +16,7 @@ import 'package:koi_dessert_bar/features/customer/views/order_detail_view.dart';
 import 'package:koi_dessert_bar/features/customer/views/order_success_view.dart';
 import 'package:koi_dessert_bar/features/customer/views/product_detail_view.dart';
 import 'package:koi_dessert_bar/features/customer/views/profile_view.dart';
+import 'package:koi_dessert_bar/features/order/models/order_model.dart';
 import 'package:koi_dessert_bar/features/product/models/product_model.dart';
 
 class AppRoutes {
@@ -82,12 +83,14 @@ class AppRouter {
             path: AppRoutes.orderHistory,
             name: 'history',
             builder: (_, __) => const OrderHistoryView(),
-          ),
-          GoRoute(
-            path: 'history/:id',
-            name: 'orderDetail',
-            builder: (_, state) =>
-                OrderDetailView(order: state.extra! as dynamic),
+            routes: [
+              GoRoute(
+                path: ':id',
+                name: 'orderDetail',
+                builder: (_, state) =>
+                    OrderDetailView(order: state.extra! as OrderModel),
+              ),
+            ],
           ),
           GoRoute(
             path: AppRoutes.profile,

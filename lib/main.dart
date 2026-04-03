@@ -1,8 +1,3 @@
-// ============================================================
-// main.dart — Koi Dessert Bar
-// Entry point: Supabase init, ThemeData, routing
-// ============================================================
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -20,19 +15,16 @@ import 'core/router/app_router.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Lock to portrait orientation for consistent UX
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
 
-  // Status bar styling
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
     statusBarIconBrightness: Brightness.dark,
   ));
 
-  // Initialize Supabase
   await Supabase.initialize(
     url: const String.fromEnvironment('SUPABASE_URL',
         defaultValue: 'https://lypwbdgcttnkpfofsutj.supabase.co'),
@@ -89,12 +81,9 @@ class KoiApp extends StatelessWidget {
         onSurface: AppColors.textPrimary,
       ),
 
-      // ── Scaffold ─────────────────────────────────────────
       scaffoldBackgroundColor: AppColors.background,
 
-      // ── Typography ───────────────────────────────────────
       textTheme: baseTextTheme.copyWith(
-        // Display — Playfair Display for headings
         displayLarge: GoogleFonts.playfairDisplay(
           fontSize: 32, fontWeight: FontWeight.w700, color: AppColors.textPrimary,
         ),
@@ -113,7 +102,6 @@ class KoiApp extends StatelessWidget {
         headlineSmall: GoogleFonts.playfairDisplay(
           fontSize: 18, fontWeight: FontWeight.w600, color: AppColors.textPrimary,
         ),
-        // Body — Source Sans 3
         bodyLarge: GoogleFonts.sourceSans3(
           fontSize: 16, fontWeight: FontWeight.w400, color: AppColors.textPrimary,
         ),
@@ -128,7 +116,6 @@ class KoiApp extends StatelessWidget {
         ),
       ),
 
-      // ── AppBar ───────────────────────────────────────────
       appBarTheme: AppBarTheme(
         backgroundColor: AppColors.background,
         elevation: 0,
@@ -140,7 +127,6 @@ class KoiApp extends StatelessWidget {
         iconTheme: const IconThemeData(color: AppColors.textPrimary),
       ),
 
-      // ── Elevated Button — StadiumBorder ──────────────────
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,
@@ -154,7 +140,6 @@ class KoiApp extends StatelessWidget {
         ),
       ),
 
-      // ── Outlined Button ──────────────────────────────────
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.primary,
@@ -167,7 +152,6 @@ class KoiApp extends StatelessWidget {
         ),
       ),
 
-      // ── Text Button ──────────────────────────────────────
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: AppColors.primary,
@@ -177,7 +161,6 @@ class KoiApp extends StatelessWidget {
         ),
       ),
 
-      // ── Input Decoration ─────────────────────────────────
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: AppColors.surface,
@@ -203,7 +186,6 @@ class KoiApp extends StatelessWidget {
         ),
       ),
 
-      // ── Card ─────────────────────────────────────────────
       cardTheme: CardThemeData(
         color: AppColors.surface,
         elevation: 0,
@@ -213,7 +195,6 @@ class KoiApp extends StatelessWidget {
         ),
       ),
 
-      // ── BottomNavigationBar ──────────────────────────────
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         backgroundColor: AppColors.surface,
         selectedItemColor: AppColors.primary,
@@ -223,7 +204,6 @@ class KoiApp extends StatelessWidget {
         elevation: 0,
       ),
 
-      // ── Chip ─────────────────────────────────────────────
       chipTheme: ChipThemeData(
         backgroundColor: AppColors.background,
         selectedColor: AppColors.primary,
@@ -233,7 +213,6 @@ class KoiApp extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       ),
 
-      // ── Divider ──────────────────────────────────────────
       dividerTheme: DividerThemeData(
         color: Colors.grey.shade100,
         thickness: 1,

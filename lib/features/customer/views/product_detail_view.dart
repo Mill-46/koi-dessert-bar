@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'package:koi_dessert_bar/core/constants/app_colors.dart';
+import 'package:koi_dessert_bar/core/utils/currency_formatter.dart';
 import 'package:koi_dessert_bar/features/order/providers/cart_provider.dart';
 import 'package:koi_dessert_bar/features/product/models/product_model.dart';
 
@@ -18,39 +19,6 @@ class ProductDetailView extends StatefulWidget {
 
 class _ProductDetailViewState extends State<ProductDetailView> {
   int _qty = 1;
-
-  void _showAddedBanner(BuildContext context, String productName) {
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.clearMaterialBanners();
-    messenger.showMaterialBanner(
-      MaterialBanner(
-        backgroundColor: AppColors.primary,
-        content: Text(
-          '$productName added to cart',
-          style: const TextStyle(color: Colors.white),
-        ),
-        leading: const Icon(
-          Icons.check_circle_outline_rounded,
-          color: Colors.white,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => messenger.hideCurrentMaterialBanner(),
-            child: const Text(
-              'OK',
-              style: TextStyle(color: Colors.white),
-            ),
-          ),
-        ],
-      ),
-    );
-
-    Future<void>.delayed(const Duration(seconds: 2), () {
-      if (mounted) {
-        messenger.hideCurrentMaterialBanner();
-      }
-    });
-  }
 
   void _increment() {
     if (_qty < widget.product.stock) {
@@ -163,7 +131,7 @@ class _ProductDetailViewState extends State<ProductDetailView> {
                         ),
                       ),
                       Text(
-                        'Rp ${product.price.toStringAsFixed(0)}',
+                        CurrencyFormatter.rupiah(product.price),
                         style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                               color: AppColors.primary,
                             ),
@@ -228,13 +196,12 @@ class _ProductDetailViewState extends State<ProductDetailView> {
                           onPressed: product.inStock
                               ? () {
                                   cart.addItem(product, qty: _qty);
-                                  _showAddedBanner(context, product.name);
                                   context.pop();
                                 }
                               : null,
                           child: Text(
                             product.inStock
-                                ? 'Add to Cart • Rp ${(product.price * _qty).toStringAsFixed(0)}'
+                                ? 'Add to Cart • ${CurrencyFormatter.rupiah(product.price * _qty)}'
                                 : 'Out of Stock',
                           ),
                         ),

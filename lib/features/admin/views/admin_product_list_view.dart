@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import 'package:koi_dessert_bar/core/constants/app_colors.dart';
 import 'package:koi_dessert_bar/core/router/app_router.dart';
+import 'package:koi_dessert_bar/core/utils/currency_formatter.dart';
 import 'package:koi_dessert_bar/features/admin/providers/admin_provider.dart';
 import 'package:koi_dessert_bar/features/product/models/product_model.dart';
 
@@ -42,7 +43,8 @@ class _AdminProductListViewState extends State<AdminProductListView> {
         actions: [
           IconButton(
             icon: const Icon(Icons.add_circle_outline_rounded),
-            onPressed: () => context.push(AppRoutes.adminProductForm, extra: null),
+            onPressed: () =>
+                context.push(AppRoutes.adminProductForm, extra: null),
           ),
         ],
       ),
@@ -73,8 +75,7 @@ class _AdminProductListViewState extends State<AdminProductListView> {
           Expanded(
             child: admin.isLoading
                 ? const Center(
-                    child:
-                        CircularProgressIndicator(color: AppColors.primary),
+                    child: CircularProgressIndicator(color: AppColors.primary),
                   )
                 : admin.products.isEmpty
                     ? const Center(child: Text('No products found'))
@@ -82,12 +83,68 @@ class _AdminProductListViewState extends State<AdminProductListView> {
                         padding: const EdgeInsets.all(20),
                         itemCount: admin.products.length,
                         separatorBuilder: (_, __) => const SizedBox(height: 10),
-                        itemBuilder: (context, index) => _AdminProductTile(
-                          product: admin.products[index],
-                        ),
+                        itemBuilder: (context, index) {
+                          final product = admin.products[index];
+                          return _AdminProductTile(
+                            product: product,
+                            isDeleting: admin.isDeletingProduct(product.id),
+                            onEdit: () => context.push(
+                              AppRoutes.adminProductForm,
+                              extra: product,
+                            ),
+                            onDelete: () => _handleDelete(product),
+                          );
+                        },
                       ),
           ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _handleDelete(ProductModel product) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Delete Product'),
+        content: Text('Delete "${product.name}"? This cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text(
+              'Delete',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) {
+      return;
+    }
+
+    final admin = context.read<AdminProvider>();
+    final success = await admin.deleteProduct(product);
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          success
+              ? (admin.notice ?? 'Product deleted')
+              : (admin.error ?? 'Failed to delete'),
+        ),
+        backgroundColor: success ? AppColors.primary : Colors.red,
+        behavior: SnackBarBehavior.floating,
+        shape: const StadiumBorder(),
       ),
     );
   }
@@ -95,13 +152,19 @@ class _AdminProductListViewState extends State<AdminProductListView> {
 
 class _AdminProductTile extends StatelessWidget {
   final ProductModel product;
+  final bool isDeleting;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
 
-  const _AdminProductTile({required this.product});
+  const _AdminProductTile({
+    required this.product,
+    required this.isDeleting,
+    required this.onEdit,
+    required this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final admin = context.read<AdminProvider>();
-
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -141,7 +204,7 @@ class _AdminProductTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Rp ${product.price.toStringAsFixed(0)} • Stock: ${product.stock}',
+                  '${CurrencyFormatter.rupiah(product.price)} • Stock: ${product.stock}',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],
@@ -156,45 +219,23 @@ class _AdminProductTile extends StatelessWidget {
                   color: AppColors.primary,
                   size: 20,
                 ),
-                onPressed: () =>
-                    context.push(AppRoutes.adminProductForm, extra: product),
+                onPressed: isDeleting ? null : onEdit,
               ),
               IconButton(
-                icon: const Icon(
-                  Icons.delete_outline,
-                  color: Colors.red,
-                  size: 20,
-                ),
-                onPressed: () => _confirmDelete(context, admin),
+                onPressed: isDeleting ? null : onDelete,
+                icon: isDeleting
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(
+                        Icons.delete_outline,
+                        color: Colors.red,
+                        size: 20,
+                      ),
               ),
             ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _confirmDelete(BuildContext context, AdminProvider admin) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Delete Product'),
-        content: Text('Delete "${product.name}"? This cannot be undone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              admin.deleteProduct(product.id);
-              Navigator.pop(context);
-            },
-            child: const Text(
-              'Delete',
-              style: TextStyle(color: Colors.red),
-            ),
           ),
         ],
       ),

@@ -4,8 +4,11 @@ import 'package:provider/provider.dart';
 
 import 'package:koi_dessert_bar/core/constants/app_colors.dart';
 import 'package:koi_dessert_bar/core/router/app_router.dart';
+import 'package:koi_dessert_bar/core/utils/currency_formatter.dart';
+import 'package:koi_dessert_bar/features/auth/providers/auth_provider.dart';
 import 'package:koi_dessert_bar/features/order/providers/cart_provider.dart';
 import 'package:koi_dessert_bar/features/order/providers/order_provider.dart';
+import 'package:koi_dessert_bar/features/product/providers/product_provider.dart';
 
 class CheckoutView extends StatefulWidget {
   const CheckoutView({super.key});
@@ -34,6 +37,8 @@ class _CheckoutViewState extends State<CheckoutView> {
 
     final cart = context.read<CartProvider>();
     final order = context.read<OrderProvider>();
+    final productProvider = context.read<ProductProvider>();
+    final authProvider = context.read<AuthProvider>();
 
     final orderId = await order.placeOrder(
       items: cart.items,
@@ -48,6 +53,11 @@ class _CheckoutViewState extends State<CheckoutView> {
 
     if (orderId != null) {
       cart.clear();
+      await productProvider.loadProducts();
+      await authProvider.loadProfile();
+      if (!mounted) {
+        return;
+      }
       context.go(AppRoutes.orderSuccess, extra: orderId);
       return;
     }
@@ -186,7 +196,7 @@ class _CheckoutViewState extends State<CheckoutView> {
                               style: Theme.of(context).textTheme.bodyMedium,
                             ),
                             Text(
-                              'Rp ${item.subtotal.toStringAsFixed(0)}',
+                              CurrencyFormatter.rupiah(item.subtotal),
                               style:
                                   const TextStyle(fontWeight: FontWeight.w500),
                             ),
@@ -206,7 +216,7 @@ class _CheckoutViewState extends State<CheckoutView> {
                               ?.copyWith(color: AppColors.textPrimary),
                         ),
                         Text(
-                          'Rp ${cart.total.toStringAsFixed(0)}',
+                          CurrencyFormatter.rupiah(cart.total),
                           style: Theme.of(context)
                               .textTheme
                               .headlineSmall
@@ -229,7 +239,9 @@ class _CheckoutViewState extends State<CheckoutView> {
                           strokeWidth: 2,
                         ),
                       )
-                    : Text('Place Order • Rp ${cart.total.toStringAsFixed(0)}'),
+                    : Text(
+                        'Place Order • ${CurrencyFormatter.rupiah(cart.total)}',
+                      ),
               ),
             ],
           ),

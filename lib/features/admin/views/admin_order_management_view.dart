@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import 'package:koi_dessert_bar/core/constants/app_colors.dart';
 import 'package:koi_dessert_bar/core/services/supabase_service.dart';
+import 'package:koi_dessert_bar/core/utils/currency_formatter.dart';
 import 'package:koi_dessert_bar/features/admin/providers/admin_provider.dart';
 import 'package:koi_dessert_bar/features/order/models/order_model.dart';
 
@@ -22,7 +23,7 @@ class AdminOrderManagementView extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Order Management')),
       body: StreamBuilder<List<OrderModel>>(
-        stream: SupabaseService.instance.streamAllOrders(),
+        stream: SupabaseService.instance.watchAllOrders(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(
@@ -137,7 +138,7 @@ class _AdminOrderCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Rp ${order.totalPrice.toStringAsFixed(0)}',
+                CurrencyFormatter.rupiah(order.totalPrice),
                 style: const TextStyle(
                   color: AppColors.primary,
                   fontWeight: FontWeight.w700,

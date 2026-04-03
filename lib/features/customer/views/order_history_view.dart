@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import 'package:koi_dessert_bar/core/constants/app_colors.dart';
 import 'package:koi_dessert_bar/core/services/supabase_service.dart';
+import 'package:koi_dessert_bar/core/utils/currency_formatter.dart';
 import 'package:koi_dessert_bar/features/order/models/order_model.dart';
 import 'package:koi_dessert_bar/features/order/providers/order_provider.dart';
 
@@ -15,7 +16,7 @@ class OrderHistoryView extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('My Orders')),
       body: StreamBuilder<List<OrderModel>>(
-        stream: SupabaseService.instance.streamMyOrders(),
+        stream: SupabaseService.instance.watchMyOrders(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(
@@ -69,93 +70,101 @@ class _OrderHistoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade100),
+    return InkWell(
+      borderRadius: BorderRadius.circular(20),
+      onTap: () => context.pushNamed(
+        'orderDetail',
+        pathParameters: {'id': order.id},
+        extra: order,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                '#${order.id.substring(0, 8).toUpperCase()}',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 15,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.grey.shade100),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '#${order.id.substring(0, 8).toUpperCase()}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                  ),
                 ),
-              ),
-              _StatusBadge(status: order.status),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Icon(
-                order.isDelivery
-                    ? Icons.delivery_dining_rounded
-                    : Icons.restaurant_rounded,
-                size: 14,
-                color: AppColors.textSecondary,
-              ),
-              const SizedBox(width: 4),
+                _StatusBadge(status: order.status),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(
+                  order.isDelivery
+                      ? Icons.delivery_dining_rounded
+                      : Icons.restaurant_rounded,
+                  size: 14,
+                  color: AppColors.textSecondary,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  order.isDelivery ? 'Delivery' : 'Dine In',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const Spacer(),
+                Text(
+                  _formatDate(order.createdAt),
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+            if (order.isDelivery && order.address != null) ...[
+              const SizedBox(height: 6),
               Text(
-                order.isDelivery ? 'Delivery' : 'Dine In',
+                order.address!,
                 style: Theme.of(context).textTheme.bodySmall,
-              ),
-              const Spacer(),
-              Text(
-                _formatDate(order.createdAt),
-                style: Theme.of(context).textTheme.bodySmall,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
-          ),
-          if (order.isDelivery && order.address != null) ...[
-            const SizedBox(height: 6),
-            Text(
-              order.address!,
-              style: Theme.of(context).textTheme.bodySmall,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+            Divider(height: 20, color: Colors.grey.shade100),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  CurrencyFormatter.rupiah(order.totalPrice),
+                  style: const TextStyle(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                  ),
+                ),
+                if (order.isCancellable)
+                  TextButton(
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.red,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      shape: const StadiumBorder(),
+                      side: const BorderSide(color: Colors.red),
+                      minimumSize: Size.zero,
+                    ),
+                    onPressed: () => _confirmCancel(context),
+                    child: const Text(
+                      'Cancel Order',
+                      style: TextStyle(fontSize: 13),
+                    ),
+                  ),
+              ],
             ),
           ],
-          Divider(height: 20, color: Colors.grey.shade100),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Rp ${order.totalPrice.toStringAsFixed(0)}',
-                style: const TextStyle(
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 16,
-                ),
-              ),
-              if (order.isCancellable)
-                TextButton(
-                  style: TextButton.styleFrom(
-                    foregroundColor: Colors.red,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    shape: const StadiumBorder(),
-                    side: const BorderSide(color: Colors.red),
-                    minimumSize: Size.zero,
-                  ),
-                  onPressed: () => _confirmCancel(context),
-                  child: const Text(
-                    'Cancel Order',
-                    style: TextStyle(fontSize: 13),
-                  ),
-                ),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }

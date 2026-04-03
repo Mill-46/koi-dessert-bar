@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -5,6 +7,7 @@ import 'package:provider/provider.dart';
 
 import 'package:koi_dessert_bar/core/constants/app_colors.dart';
 import 'package:koi_dessert_bar/core/router/app_router.dart';
+import 'package:koi_dessert_bar/core/utils/currency_formatter.dart';
 import 'package:koi_dessert_bar/features/auth/providers/auth_provider.dart';
 import 'package:koi_dessert_bar/features/product/models/product_model.dart';
 import 'package:koi_dessert_bar/features/product/providers/product_provider.dart';
@@ -17,12 +20,34 @@ class HomeView extends StatefulWidget {
 }
 
 class _HomeViewState extends State<HomeView> {
+  late final TextEditingController _searchCtrl;
+  Timer? _searchDebounce;
+
   @override
   void initState() {
     super.initState();
+    _searchCtrl = TextEditingController();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<ProductProvider>().loadProducts();
       context.read<AuthProvider>().loadProfile();
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String value) {
+    setState(() {});
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 300), () {
+      if (!mounted) {
+        return;
+      }
+      context.read<ProductProvider>().searchProducts(value);
     });
   }
 
@@ -77,24 +102,42 @@ class _HomeViewState extends State<HomeView> {
                     const SizedBox(height: 20),
                     Container(
                       height: 50,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
                       decoration: BoxDecoration(
                         color: AppColors.surface,
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(color: Colors.grey.shade200),
                       ),
-                      child: Row(
-                        children: [
-                          const Icon(
+                      child: TextField(
+                        controller: _searchCtrl,
+                        onChanged: _onSearchChanged,
+                        textInputAction: TextInputAction.search,
+                        decoration: InputDecoration(
+                          hintText: 'Search desserts…',
+                          border: InputBorder.none,
+                          prefixIcon: const Icon(
                             Icons.search,
                             color: AppColors.textSecondary,
                           ),
-                          const SizedBox(width: 12),
-                          Text(
-                            'Search desserts…',
-                            style: Theme.of(context).textTheme.bodyMedium,
+                          suffixIcon: _searchCtrl.text.isEmpty
+                              ? null
+                              : IconButton(
+                                  onPressed: () {
+                                    _searchCtrl.clear();
+                                    _onSearchChanged('');
+                                    setState(() {});
+                                  },
+                                  icon: const Icon(
+                                    Icons.close,
+                                    size: 18,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
                           ),
-                        ],
+                        ),
+                        style: Theme.of(context).textTheme.bodyMedium,
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -119,6 +162,7 @@ class _HomeViewState extends State<HomeView> {
                           return ChoiceChip(
                             label: Text(category),
                             selected: isSelected,
+                            showCheckmark: false,
                             onSelected: (_) =>
                                 products.filterByCategory(category),
                             selectedColor: AppColors.primary,
@@ -251,7 +295,7 @@ class _ProductCard extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'Rp ${product.price.toStringAsFixed(0)}',
+                        CurrencyFormatter.rupiah(product.price),
                         style: Theme.of(context).textTheme.labelLarge?.copyWith(
                               color: AppColors.primary,
                               fontSize: 14,

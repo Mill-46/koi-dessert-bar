@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import 'package:koi_dessert_bar/core/constants/app_colors.dart';
 import 'package:koi_dessert_bar/core/router/app_router.dart';
+import 'package:koi_dessert_bar/core/utils/currency_formatter.dart';
 import 'package:koi_dessert_bar/features/order/providers/cart_provider.dart';
 
 class MainWrapper extends StatelessWidget {
@@ -39,7 +40,7 @@ class MainWrapper extends StatelessWidget {
                 color: Colors.white,
               ),
               label: Text(
-                '${cart.itemCount} items  •  Rp ${cart.total.toStringAsFixed(0)}',
+                '${cart.itemCount} items  •  ${CurrencyFormatter.rupiah(cart.total)}',
                 style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.w600,

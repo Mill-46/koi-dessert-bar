@@ -229,8 +229,9 @@ class _AdminProductFormViewState extends State<AdminProductFormView> {
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
-                initialValue:
-                    categories.contains(_catCtrl.text) ? _catCtrl.text : 'Other',
+                initialValue: categories.contains(_catCtrl.text)
+                    ? _catCtrl.text
+                    : 'Other',
                 decoration: const InputDecoration(labelText: 'Category'),
                 items: categories
                     .map(
