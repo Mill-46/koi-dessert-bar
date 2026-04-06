@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -27,7 +27,8 @@ class _AdminProductFormViewState extends State<AdminProductFormView> {
   late final TextEditingController _stockCtrl;
   late final TextEditingController _catCtrl;
 
-  File? _pickedImage;
+  XFile? _pickedImage;
+  Uint8List? _pickedImageBytes;
   bool _isAvailable = true;
 
   bool get _isEdit => widget.product != null;
@@ -64,7 +65,11 @@ class _AdminProductFormViewState extends State<AdminProductFormView> {
       maxWidth: 800,
     );
     if (picked != null) {
-      setState(() => _pickedImage = File(picked.path));
+      final bytes = await picked.readAsBytes();
+      setState(() {
+        _pickedImage = picked;
+        _pickedImageBytes = bytes;
+      });
     }
   }
 
@@ -85,7 +90,11 @@ class _AdminProductFormViewState extends State<AdminProductFormView> {
       isAvailable: _isAvailable,
     );
 
-    final success = await admin.saveProduct(product, imageFile: _pickedImage);
+    final success = await admin.saveProduct(
+      product,
+      imageBytes: _pickedImageBytes,
+      imageName: _pickedImage?.name,
+    );
     if (!mounted) {
       return;
     }
@@ -141,8 +150,8 @@ class _AdminProductFormViewState extends State<AdminProductFormView> {
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(20),
-                    child: _pickedImage != null
-                        ? Image.file(_pickedImage!, fit: BoxFit.cover)
+                    child: _pickedImageBytes != null
+                        ? Image.memory(_pickedImageBytes!, fit: BoxFit.cover)
                         : widget.product?.imageUrl != null
                             ? Stack(
                                 fit: StackFit.expand,

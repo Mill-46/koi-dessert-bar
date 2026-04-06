@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
@@ -45,7 +45,11 @@ class AdminProvider extends ChangeNotifier {
     } catch (_) {}
   }
 
-  Future<bool> saveProduct(ProductModel product, {File? imageFile}) async {
+  Future<bool> saveProduct(
+    ProductModel product, {
+    Uint8List? imageBytes,
+    String? imageName,
+  }) async {
     _isLoading = true;
     _error = null;
     _notice = null;
@@ -54,10 +58,11 @@ class AdminProvider extends ChangeNotifier {
       if (product.id.isEmpty) {
         var createdProduct =
             await SupabaseService.instance.createProduct(product);
-        if (imageFile != null) {
+        if (imageBytes != null) {
           final imageUrl = await SupabaseService.instance.uploadProductImage(
-            imageFile,
+            imageBytes,
             createdProduct.id,
+            fileName: imageName ?? 'product-image.jpg',
           );
           createdProduct = await SupabaseService.instance.updateProduct(
             createdProduct.copyWith(imageUrl: imageUrl),
@@ -66,10 +71,11 @@ class AdminProvider extends ChangeNotifier {
         _notice = 'Product added successfully.';
       } else {
         var updatedProduct = product;
-        if (imageFile != null) {
+        if (imageBytes != null) {
           final imageUrl = await SupabaseService.instance.uploadProductImage(
-            imageFile,
+            imageBytes,
             product.id,
+            fileName: imageName ?? 'product-image.jpg',
             previousImageUrl: product.imageUrl,
           );
           updatedProduct = updatedProduct.copyWith(imageUrl: imageUrl);

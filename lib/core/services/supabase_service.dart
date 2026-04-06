@@ -3,7 +3,7 @@
 // Single-responsibility data access layer wrapping Supabase
 // ============================================================
 
-import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -199,17 +199,23 @@ class SupabaseService {
 
   /// Uploads an image file and returns the public URL
   Future<String> uploadProductImage(
-    File imageFile,
+    Uint8List imageBytes,
     String productId, {
+    required String fileName,
     String? previousImageUrl,
   }) async {
-    final ext = imageFile.path.split('.').last;
+    final ext = _extractImageExtension(fileName);
     final timestamp = DateTime.now().millisecondsSinceEpoch;
     final path = 'products/$productId-$timestamp.$ext';
 
-    await _client.storage
-        .from('product-images')
-        .upload(path, imageFile, fileOptions: const FileOptions(upsert: true));
+    await _client.storage.from('product-images').uploadBinary(
+          path,
+          imageBytes,
+          fileOptions: FileOptions(
+            upsert: true,
+            contentType: _contentTypeForImageExtension(ext),
+          ),
+        );
 
     final previousPath = _extractStoragePathFromPublicUrl(previousImageUrl);
     if (previousPath != null && previousPath != path) {
@@ -225,6 +231,39 @@ class SupabaseService {
 
   Future<void> deleteProductImage(String path) async {
     await _client.storage.from('product-images').remove([path]);
+  }
+
+  String _extractImageExtension(String fileName) {
+    final normalized = fileName.split('/').last.split('?').first;
+    final dotIndex = normalized.lastIndexOf('.');
+
+    if (dotIndex == -1 || dotIndex == normalized.length - 1) {
+      return 'jpg';
+    }
+
+    return normalized.substring(dotIndex + 1).toLowerCase();
+  }
+
+  String _contentTypeForImageExtension(String extension) {
+    switch (extension) {
+      case 'png':
+        return 'image/png';
+      case 'gif':
+        return 'image/gif';
+      case 'webp':
+        return 'image/webp';
+      case 'bmp':
+        return 'image/bmp';
+      case 'heic':
+        return 'image/heic';
+      case 'heif':
+        return 'image/heif';
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      default:
+        return 'application/octet-stream';
+    }
   }
 
   String describeAdminError(Object error) {
